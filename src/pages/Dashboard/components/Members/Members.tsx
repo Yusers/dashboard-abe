@@ -1,38 +1,59 @@
 import React, { useEffect, useState } from 'react';
-import TableComponent from '../../../../components/TableComponent/TableComponent';
+import TableComponent, { Column } from '../../../../components/TableComponent/TableComponent';
 import EmptyData from '../../../../components/EmptyData/EmptyData';
-
-// Raw data type from API
-export type Member = {
-  id: string;
-  fullName: string;
-  employeeNumber: string;
-  phoneNumber: string;
-  reigon: string;
-  role: string;
-  email: string;
-  status: string;
-};
+import { Member } from '../../../../model/Member';
+import MemberDetail from '../MemberDetail/MemberDetail';
 
 const Members: React.FC = () => {
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [query, setQuery] = useState<string>('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const columns = [
+  const columns: Column[] = [
     { key: 'stt', label: 'STT' },
-    { key: 'hoTen', label: 'Họ tên' },
-    { key: 'maNhanVien', label: 'Mã nhân viên' },
-    { key: 'soDienThoai', label: 'Số điện thoại' },
-    { key: 'vung', label: 'Vùng' },
-    { key: 'chucVu', label: 'Chức vụ' },
+    { key: 'fullName', label: 'Họ tên' },
+    { key: 'employeeNumber', label: 'Mã nhân viên' },
+    { key: 'phoneNumber', label: 'Số điện thoại' },
+    { key: 'reigon', label: 'Vùng' },
+    { key: 'role', label: 'Chức vụ' },
     { key: 'email', label: 'Email' },
     { key: 'status', label: 'Trạng thái hoạt động' },
     { key: 'actions', label: 'Hành động' },
   ];
 
-  const handleAction = (item: any, action: string) => {
+  const handleAction = (item: Member, action: string) => {
     if (action === 'view') {
-      alert(`Viewing details for ${item.hoTen}`);
+      setSelectedId(item.id);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleSaveUser = async (user: Member) => {
+    console.log('Saving user:', user);
+    try {
+      const response = await fetch(
+        `https://683f00af1cd60dca33ddec2a.mockapi.io/members/${user.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(user),
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to update member');
+
+      const updatedMember: Member = await response.json();
+      setMembers((prevMembers) =>
+        prevMembers.map((member) => (member.id === user.id ? updatedMember : member))
+      );
+    } catch (error) {
+      console.error('Error updating member:', error);
+    } finally {
+      setIsModalOpen(false);
     }
   };
 
@@ -52,24 +73,29 @@ const Members: React.FC = () => {
   useEffect(() => {
     const fetchMembers = async () => {
       try {
+        setLoading(true);
         const response = await fetch('https://683f00af1cd60dca33ddec2a.mockapi.io/members');
         if (!response.ok) throw new Error('Network response was not ok');
 
         const data: Member[] = await response.json();
 
         const mapped = data.map((item, index) => ({
-          stt: index + 1,
-          hoTen: item.fullName,
-          maNhanVien: item.employeeNumber,
-          soDienThoai: item.phoneNumber,
-          vung: item.reigon,
-          chucVu: convertRoleIdToName(item.role.toString()),
-          email: item.email,
-          status: item.status,
-          actions: '',
+          ...item,
+          stt: (index + 1).toString(),
+          role: convertRoleIdToName(item.role),
         }));
 
-        setMembers(mapped);
+        const filteredMembers = mapped.filter((member) => {
+          const matchesId = !selectedId || member.id === selectedId;
+          const matchesQuery =
+            !query ||
+            member.fullName.toLowerCase().includes(query.toLowerCase()) ||
+            member.email.toLowerCase().includes(query.toLowerCase()) ||
+            member.employeeNumber.toLowerCase().includes(query.toLowerCase());
+          return matchesId && matchesQuery;
+        });
+
+        setMembers(filteredMembers);
       } catch (error) {
         console.error('Fetch error:', error);
       } finally {
@@ -78,18 +104,28 @@ const Members: React.FC = () => {
     };
 
     fetchMembers();
-  }, []);
+  }, [selectedId, query]);
 
-  return !members ? (
+  return members.length === 0 && !loading ? (
     <EmptyData />
   ) : (
-    <TableComponent
-      columns={columns}
-      data={members}
-      itemsPerPage={10}
-      onAction={handleAction}
-      isLoading={loading}
-    />
+    <div>
+      <TableComponent
+        columns={columns}
+        data={members}
+        itemsPerPage={10}
+        onAction={handleAction}
+        isLoading={loading}
+        onSaveUser={handleSaveUser}
+      />
+      <MemberDetail
+        id={isModalOpen ? selectedId : undefined}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveUser}
+        isCreate={false}
+      />
+    </div>
   );
 };
 

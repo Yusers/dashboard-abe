@@ -1,23 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import './TableComponent.scss';
 import eyeIcon from '../../assets/img/eye.png';
+import MemberDetail from '../../pages/Dashboard/components/MemberDetail/MemberDetail';
+import { Member } from '../../model/Member';
 
-interface Column {
-  key: string;
+export interface Column {
+  key: keyof Member | 'stt' | 'actions'; // Restrict key to Member properties or special keys
   label: string;
   sortable?: boolean;
 }
 
-interface DataItem {
-  [key: string]: any;
-}
-
 interface TableProps {
   columns: Column[];
-  data: DataItem[];
+  data: Member[]; // Changed from DataItem[] to Member[]
   itemsPerPage?: number;
-  onAction?: (item: DataItem, action: string) => void;
+  onAction?: (item: Member, action: string) => void; // Changed from DataItem to Member
   isLoading: boolean;
+  onSaveUser?: (user: Member) => void; // Changed from DataItem to Member
 }
 
 const statusMap: Record<string, string> = {
@@ -38,25 +37,30 @@ const TableComponent: React.FC<TableProps> = ({
   itemsPerPage = 10,
   onAction,
   isLoading,
+  onSaveUser,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedUser, setSelectedUser] = useState<Member | null>(null); // Changed from DataItem to Member
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Extract unique status and region values from data
   const statusOptions = Array.from(new Set(data.map((item) => item.status)));
-  const regionOptions = Array.from(new Set(data.map((item) => item.vung)));
+  const regionOptions = Array.from(new Set(data.map((item) => item.reigon))); // Changed from vung to region
 
   // Apply search and filter
   const filteredData = data
     .filter((item) =>
-      columns.some((column) =>
-        item[column.key]?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      columns.some((column) => {
+        if (column.key === 'actions' || column.key === 'stt') return false; // Skip special keys
+        return item[column.key]?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+      })
     )
     .filter((item) => (selectedStatus !== '' ? item.status.toString() === selectedStatus : true))
-    .filter((item) => (selectedRegion !== '' ? item.vung.toString() === selectedRegion : true));
+    .filter((item) => (selectedRegion !== '' ? item.reigon.toString() === selectedRegion : true));
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice(
@@ -64,8 +68,19 @@ const TableComponent: React.FC<TableProps> = ({
     currentPage * itemsPerPage
   );
 
-  const handleAction = (item: DataItem, action: string) => {
-    if (onAction) onAction(item, action);
+  const handleAction = (item: Member, action: string) => {
+    if (action === 'view' && onAction) {
+      setSelectedUser(item);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleSaveUser = (user: Member) => {
+    if (onSaveUser) {
+      onSaveUser(user);
+    }
+    setIsModalOpen(false);
+    setIsCreateModalOpen(false);
   };
 
   useEffect(() => {
@@ -113,7 +128,9 @@ const TableComponent: React.FC<TableProps> = ({
             <div className='action-buttons'>
               <button className='action-btn'>Tải nhân viên</button>
               <button className='action-btn export-btn'>Xuất danh sách tài khoản</button>
-              <button className='action-btn create-btn'>Tạo mới</button>
+              <button className='action-btn create-btn' onClick={() => setIsCreateModalOpen(true)}>
+                Tạo mới
+              </button>
             </div>
           </div>
           <div className='table-filter'>
@@ -164,7 +181,9 @@ const TableComponent: React.FC<TableProps> = ({
                       • {statusMap[item.status.toString()] || item.status}
                     </span>
                   ) : column.key === 'role' ? (
-                    <span>{item.role}</span>
+                    <span>
+                      {item.role === '0' ? 'Nhân viên' : item.role === '1' ? 'Giám sát' : 'Quản lý'}
+                    </span>
                   ) : column.key === 'actions' ? (
                     <div className='action-buttons'>
                       <button
@@ -174,8 +193,10 @@ const TableComponent: React.FC<TableProps> = ({
                         <img src={eyeIcon} alt='eye' />
                       </button>
                     </div>
+                  ) : column.key === 'stt' ? (
+                    (currentPage - 1) * itemsPerPage + index + 1
                   ) : (
-                    item[column.key]
+                    item[column.key] // Safe with keyof Member
                   )}
                 </td>
               ))}
@@ -211,6 +232,21 @@ const TableComponent: React.FC<TableProps> = ({
           {'>'}
         </button>
       </div>
+
+      {selectedUser && (
+        <MemberDetail
+          user={selectedUser}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveUser}
+        />
+      )}
+      <MemberDetail
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSave={handleSaveUser}
+        isCreate={true}
+      />
     </div>
   );
 };
