@@ -1,0 +1,30 @@
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  background-color: #f7f7f7;
+  padding: 16px;
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #6b7280;
+
+    .icon {
+      font-size: 48px;
+      margin-bottom: 8px;
+    }
+  }
+}
